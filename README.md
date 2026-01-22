@@ -99,7 +99,3 @@ npm run dev
 - API documentation
 - Custom React hooks for data management
 - Enhanced error handling and logging
-
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
