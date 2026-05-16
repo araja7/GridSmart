@@ -1,4 +1,4 @@
-# GridSense – Cost-Aware Energy Task Scheduler
+# GridSmart – Cost-Aware Energy Task Scheduler
 
 ## The Problem
 
@@ -6,7 +6,7 @@ Residential energy consumption often peaks during hours when the electrical grid
 
 ## The Solution
 
-GridSense is a full-stack optimization tool that synchronizes household energy demand with real-time grid pricing. By ingesting live data from the PJM Interconnection (the regional transmission organization serving 65 million people), the application calculates the mathematically optimal window to run high-load appliances (EV chargers, dishwashers, dryers) based on a user's specific deadline.
+GridSmart is a full-stack optimization tool that synchronizes household energy demand with real-time grid pricing. By ingesting live data from the PJM Interconnection (the regional transmission organization serving 65 million people), the application calculates the mathematically optimal window to run high-load appliances (EV chargers, dishwashers, dryers) based on a user's specific deadline.
 
 ## Core Functionality
 
@@ -68,7 +68,7 @@ GridSmart/
 
 ## Real-World Impact
 
-In simulated tests using actual PJM Ohio Hub data, GridSense can reduce the cost of high-energy tasks by **15% to 40%** by shifting load from peak afternoon hours to late-night or early-morning troughs. This not only saves the user money but promotes a flatter "Load Profile," which is essential for a more stable and sustainable power grid.
+In simulated tests using actual PJM Ohio Hub data, GridSmart can reduce the cost of high-energy tasks by **15% to 40%** by shifting load from peak afternoon hours to late-night or early-morning troughs. This not only saves the user money but promotes a flatter "Load Profile," which is essential for a more stable and sustainable power grid.
 
 ## Getting Started
 
