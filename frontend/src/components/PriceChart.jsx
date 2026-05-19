@@ -39,7 +39,16 @@ export default function PriceChart({ prices, schedules = [] }) {
             </linearGradient>
           </defs>
           <CartesianGrid strokeDasharray="3 3" stroke="#2a3544" vertical={false} />
-          <XAxis dataKey="label" tick={{ fill: "#8b9cb3", fontSize: 11 }} axisLine={false} tickLine={false} />
+          <XAxis
+            dataKey="hour"
+            type="number"
+            domain={[0, 23]}
+            ticks={[0, 3, 6, 9, 12, 15, 18, 21]}
+            tickFormatter={formatHour}
+            tick={{ fill: "#8b9cb3", fontSize: 11 }}
+            axisLine={false}
+            tickLine={false}
+          />
           <YAxis
             tick={{ fill: "#8b9cb3", fontSize: 11 }}
             axisLine={false}
@@ -54,7 +63,10 @@ export default function PriceChart({ prices, schedules = [] }) {
               fontSize: 13,
             }}
             formatter={(value) => [`${value} ¢/kWh`, "Price"]}
-            labelFormatter={(label) => `Hour: ${label}`}
+            labelFormatter={(_, items) => {
+              const hour = items?.[0]?.payload?.hour;
+              return `Hour: ${formatHour(hour ?? 0)}`;
+            }}
           />
           <Area
             type="monotone"
@@ -66,8 +78,8 @@ export default function PriceChart({ prices, schedules = [] }) {
           {schedules.map((s, i) => (
             <ReferenceArea
               key={s.task_id}
-              x1={formatHour(s.start_hour)}
-              x2={formatHour(Math.min(s.end_hour - 1, 23))}
+              x1={s.start_hour}
+              x2={s.end_hour}
               fill="#3dd68c"
               fillOpacity={0.15 + i * 0.05}
               stroke="#3dd68c"

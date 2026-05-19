@@ -149,8 +149,11 @@ See [Elecz supported zones](https://elecz.com/docs) for all options. No API key 
 # Health
 curl http://localhost:8000/health
 
-# Prices (look for "source": "elecz_api:US-CA-SP15")
+# Prices — check source, live, partial, and fallback_reason
 curl -s http://localhost:8000/prices | python3 -m json.tool
+# Full live:  "source": "elecz_api:DE", "live": true
+# Partial:    "source": "elecz_partial:US-CA-SP15", "partial": true
+# Fallback:   "source": "csv_fallback", "fallback_reason": "elecz_unavailable"
 
 # Schedule
 curl -s -X POST http://localhost:8000/schedule \
@@ -168,7 +171,7 @@ curl -s -X POST http://localhost:8000/schedule \
   }' | python3 -m json.tool
 ```
 
-If `/prices` returns `"source": "csv_fallback"`, Elecz was unreachable — the app still works using local CSV data. Restart the backend after killing any stale process on port 8000 (`lsof -i :8000`).
+If `/prices` returns `"source": "csv_fallback"`, Elecz was unreachable or returned too few hours — the app still works using local CSV data. US zones often show `"elecz_partial:…"` with only a few cheap-hour slots until CAISO day-ahead data is complete; set `ELECZ_ZONE=DE` for a reliable 24h live curve. Successful Elecz responses are cached for 5 minutes; CSV is never cached. Set `ELECZ_STRICT=true` to block scheduling on CSV fallback.
 
 ## Real-World Impact
 

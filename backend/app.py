@@ -1,9 +1,9 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
-from grid_service import get_current_prices
-from models import PricesResponse, ScheduleRequest
-from scheduler import optimize_schedule
+from grid_service import get_current_prices, require_live_prices
+from models import PricePoint, PricesResponse, ScheduleRequest
+from scheduler import diagnose_schedule_failure, optimize_schedule, validate_tasks
 
 app = FastAPI(
     title="GridSmart API",
@@ -24,11 +24,27 @@ def health():
     return {"status": "ok"}
 
 
+def _prices_response(bundle) -> PricesResponse:
+    return PricesResponse(
+        prices=bundle.prices,
+        source=bundle.source,
+        cached=bundle.cached,
+        live=bundle.live,
+        partial=bundle.partial,
+        elecz_attempted=bundle.elecz_attempted,
+        elecz_zone=bundle.elecz_zone,
+        elecz_hours_returned=bundle.elecz_hours_returned,
+        elecz_hours_real=bundle.elecz_hours_real,
+        elecz_data_complete=bundle.elecz_data_complete,
+        fallback_reason=bundle.fallback_reason,
+        filled_hours=bundle.filled_hours,
+    )
+
+
 @app.get("/prices", response_model=PricesResponse)
 def read_prices():
     try:
-        prices, source, cached = get_current_prices()
-        return PricesResponse(prices=prices, source=source, cached=cached)
+        return _prices_response(get_current_prices())
     except Exception:
         raise HTTPException(status_code=500, detail="Could not fetch grid data")
 
@@ -36,9 +52,18 @@ def read_prices():
 @app.post("/schedule")
 def schedule_tasks(request: ScheduleRequest):
     try:
-        prices, source, _ = get_current_prices()
+        bundle = get_current_prices()
+        require_live_prices(bundle)
+        prices: list[PricePoint] = bundle.prices
+        source = bundle.source
+    except ValueError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
     except Exception:
         raise HTTPException(status_code=500, detail="Could not fetch grid data")
+
+    validation_error = validate_tasks(request.tasks, request.max_household_kw)
+    if validation_error:
+        raise HTTPException(status_code=400, detail=validation_error)
 
     result = optimize_schedule(
         request.tasks,
@@ -48,10 +73,12 @@ def schedule_tasks(request: ScheduleRequest):
     )
 
     if not result:
-        raise HTTPException(
-            status_code=400,
-            detail="No valid schedule found within deadlines and power limits",
+        detail = diagnose_schedule_failure(
+            request.tasks,
+            prices,
+            request.max_household_kw,
         )
+        raise HTTPException(status_code=400, detail=detail)
 
     return result
 

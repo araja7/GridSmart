@@ -42,3 +42,12 @@ class PricesResponse(BaseModel):
     prices: list[PricePoint]
     source: str
     cached: bool
+    live: bool = False
+    partial: bool = False
+    elecz_attempted: bool = False
+    elecz_zone: str | None = None
+    elecz_hours_returned: int | None = None
+    elecz_hours_real: int | None = None
+    elecz_data_complete: bool | None = None
+    fallback_reason: str | None = None
+    filled_hours: int | None = None

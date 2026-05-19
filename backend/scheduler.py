@@ -84,6 +84,115 @@ def _apply_load(load_profile: list[float], task: EnergyTask, start: int) -> None
             load_profile[h] += task.power_kw
 
 
+def _task_label(task: EnergyTask) -> str:
+    return (task.name or "").strip() or task.id
+
+
+def validate_tasks(tasks: list[EnergyTask], max_household_kw: float) -> str | None:
+    """Return a user-facing error if inputs cannot possibly be scheduled."""
+    if not tasks:
+        return "Add at least one appliance to schedule."
+
+    if max_household_kw <= 0:
+        return "Max household power must be greater than 0 kW."
+
+    for task in tasks:
+        name = _task_label(task)
+        if task.power_kw > max_household_kw:
+            return (
+                f'"{name}" uses {task.power_kw} kW, which exceeds the '
+                f"{max_household_kw} kW household limit."
+            )
+
+        available = task.deadline - task.earliest_start
+        if task.duration_hours > available:
+            return (
+                f'"{name}" needs {task.duration_hours}h to run but only {available}h '
+                f"is available between earliest start (hour {task.earliest_start}) "
+                f"and deadline (hour {task.deadline})."
+            )
+
+        if task.earliest_start + task.duration_hours > 24:
+            return (
+                f'"{name}" would run past midnight (starts at hour {task.earliest_start} '
+                f"for {task.duration_hours}h). Use an earlier start or shorter duration."
+            )
+
+    return None
+
+
+def _diagnose_task_failure(
+    task: EnergyTask,
+    load_profile: list[float],
+    max_household_kw: float,
+) -> str:
+    name = _task_label(task)
+    latest_start = task.deadline - task.duration_hours
+    any_feasible = False
+
+    for start in range(task.earliest_start, latest_start + 1):
+        feasible = True
+        for h in range(start, start + task.duration_hours):
+            if h >= 24:
+                feasible = False
+                break
+            if load_profile[h] + task.power_kw > max_household_kw:
+                feasible = False
+                break
+        if feasible:
+            any_feasible = True
+            break
+
+    if any_feasible:
+        return (
+            f'"{name}" could not be scheduled with the other appliances. '
+            "Try widening time windows or raising the household power limit."
+        )
+
+    peak_other = max(load_profile) if load_profile else 0.0
+    if peak_other > 0 and peak_other + task.power_kw > max_household_kw:
+        return (
+            f'"{name}" ({task.power_kw} kW) cannot fit: other appliances already draw up to '
+            f"{peak_other:.1f} kW and the limit is {max_household_kw} kW."
+        )
+
+    return (
+        f'"{name}" has no feasible time slot between hour {task.earliest_start} '
+        f"and deadline {task.deadline} without exceeding {max_household_kw} kW."
+    )
+
+
+def diagnose_schedule_failure(
+    tasks: list[EnergyTask],
+    prices: list[PricePoint],
+    max_household_kw: float,
+) -> str:
+    basic = validate_tasks(tasks, max_household_kw)
+    if basic:
+        return basic
+
+    if not _price_map(prices):
+        return "Price data is missing or incomplete. Try refreshing prices."
+
+    heap: list[_HeapTask] = []
+    for task in tasks:
+        slack = (task.deadline - task.duration_hours) - task.earliest_start
+        urgency = slack if slack >= 0 else -1.0
+        heapq.heappush(heap, _HeapTask(urgency=urgency, task=task))
+
+    load_profile = [0.0] * 24
+    while heap:
+        entry = heapq.heappop(heap)
+        task = entry.task
+        result = find_best_window(task, prices, load_profile, max_household_kw)
+        if result is None:
+            return _diagnose_task_failure(task, load_profile, max_household_kw)
+        start, _ = result
+        _apply_load(load_profile, task, start)
+
+    return "No valid schedule found within deadlines and power limits."
+
+
 def optimize_schedule(
     tasks: list[EnergyTask],
     prices: list[PricePoint],
@@ -93,6 +202,9 @@ def optimize_schedule(
     """
     Greedy multi-task scheduler with min-heap ordering by deadline urgency.
     """
+    if validate_tasks(tasks, max_household_kw):
+        return None
+
     price_by_hour = _price_map(prices)
     if not price_by_hour:
         return None

@@ -1,9 +1,3 @@
-const APPLIANCE_PRESETS = [
-  { name: "EV Charger", power_kw: 7.2, duration_hours: 4 },
-  { name: "Dishwasher", power_kw: 1.8, duration_hours: 2 },
-  { name: "Dryer", power_kw: 5.0, duration_hours: 1 },
-];
-
 function emptyTask(index) {
   return {
     id: `task-${index}`,
@@ -40,16 +34,6 @@ export default function TaskForm({
     setTasks((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const applyPreset = (index, preset) => {
-    setTasks((prev) =>
-      prev.map((t, i) =>
-        i === index
-          ? { ...t, name: preset.name, power_kw: preset.power_kw, duration_hours: preset.duration_hours }
-          : t
-      )
-    );
-  };
-
   return (
     <div className="card">
       <h2>Schedule Tasks</h2>
@@ -82,21 +66,13 @@ export default function TaskForm({
 
             <div className="form-row">
               <label>
-                Appliance
-                <select
+                Device name
+                <input
+                  type="text"
                   value={task.name}
-                  onChange={(e) => {
-                    const preset = APPLIANCE_PRESETS.find((p) => p.name === e.target.value);
-                    if (preset) applyPreset(index, preset);
-                    else updateTask(index, "name", e.target.value);
-                  }}
-                >
-                  {APPLIANCE_PRESETS.map((p) => (
-                    <option key={p.name} value={p.name}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
+                  placeholder="e.g. EV Charger"
+                  onChange={(e) => updateTask(index, "name", e.target.value)}
+                />
               </label>
               <label>
                 Power (kW)

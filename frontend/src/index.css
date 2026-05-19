@@ -72,6 +72,15 @@ body {
   border-color: var(--accent-dim);
 }
 
+.badge.partial {
+  color: #e8b84a;
+  border-color: rgba(232, 184, 74, 0.45);
+}
+
+.badge.partial .dot {
+  background: #e8b84a;
+}
+
 .badge .dot {
   width: 6px;
   height: 6px;

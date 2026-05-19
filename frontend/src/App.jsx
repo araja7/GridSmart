@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { fetchPrices, scheduleTasks } from "./api";
+import { normalizeMaxKw, normalizeTask, validateScheduleInput } from "./validateSchedule";
 import PriceChart from "./components/PriceChart";
 import ResultsDisplay from "./components/ResultsDisplay";
 import TaskForm from "./components/TaskForm";
@@ -23,9 +24,44 @@ const DEFAULT_TASKS = [
   },
 ];
 
+function zoneFromSource(source) {
+  if (!source) return "";
+  const parts = source.split(":");
+  return parts.length > 1 ? parts.slice(1).join(":") : "";
+}
+
+function priceStatusLabel(meta) {
+  const zone = meta.zone || zoneFromSource(meta.source);
+  if (meta.live) {
+    return `Elecz live · ${zone}`;
+  }
+  if (meta.partial) {
+    const real = meta.elecz_hours_real ?? "?";
+    return `Elecz partial · ${real}/24h · ${zone}`;
+  }
+  if (meta.source === "csv_fallback") {
+    return "CSV fallback";
+  }
+  return meta.source || "Unknown source";
+}
+
+function badgeClass(meta) {
+  if (meta.live) return "badge live";
+  if (meta.partial) return "badge partial";
+  return "badge";
+}
+
 export default function App() {
   const [prices, setPrices] = useState([]);
-  const [priceMeta, setPriceMeta] = useState({ source: "", cached: false, zone: "" });
+  const [priceMeta, setPriceMeta] = useState({
+    source: "",
+    cached: false,
+    live: false,
+    partial: false,
+    zone: "",
+    elecz_hours_real: null,
+    fallback_reason: null,
+  });
   const [tasks, setTasks] = useState(DEFAULT_TASKS);
   const [maxKw, setMaxKw] = useState(10);
   const [result, setResult] = useState(null);
@@ -36,10 +72,15 @@ export default function App() {
     try {
       const data = await fetchPrices();
       setPrices(data.prices);
-      const zone = data.source?.startsWith("elecz_api:")
-        ? data.source.split(":")[1]
-        : "";
-      setPriceMeta({ source: data.source, cached: data.cached, zone });
+      setPriceMeta({
+        source: data.source,
+        cached: data.cached,
+        live: data.live,
+        partial: data.partial,
+        zone: data.elecz_zone || zoneFromSource(data.source),
+        elecz_hours_real: data.elecz_hours_real,
+        fallback_reason: data.fallback_reason,
+      });
       setError(null);
     } catch {
       setError("Could not load grid prices. Is the backend running on port 8000?");
@@ -53,10 +94,21 @@ export default function App() {
   }, [loadPrices]);
 
   const handleOptimize = async () => {
+    const validationError = validateScheduleInput(tasks, maxKw);
+    if (validationError) {
+      setError(validationError);
+      setResult(null);
+      return;
+    }
+
     setLoading(true);
     setError(null);
     try {
-      const data = await scheduleTasks({ tasks, max_household_kw: maxKw });
+      const payload = {
+        tasks: tasks.map((t) => normalizeTask(t)),
+        max_household_kw: normalizeMaxKw(maxKw),
+      };
+      const data = await scheduleTasks(payload);
       setResult(data);
     } catch (err) {
       setError(err.message);
@@ -66,19 +118,24 @@ export default function App() {
     }
   };
 
-  const sourceLabel = priceMeta.source?.startsWith("elecz_api:")
-    ? `Elecz API · ${priceMeta.zone || "live"}`
-    : "CSV fallback";
+  const showLiveDot = priceMeta.live || priceMeta.partial;
+  const statusHint =
+    priceMeta.fallback_reason === "elecz_unavailable_serving_stale"
+      ? " · stale cache"
+      : priceMeta.fallback_reason && priceMeta.source === "csv_fallback"
+        ? ` · ${priceMeta.fallback_reason.replaceAll("_", " ")}`
+        : "";
 
   return (
     <div className="app">
       <header className="header">
         <h1>GridSmart</h1>
         <p>Cost-aware energy task scheduler — shift load to the cheapest hours.</p>
-        <span className={`badge ${priceMeta.source?.startsWith("elecz_api:") ? "live" : ""}`}>
-          {priceMeta.source?.startsWith("elecz_api:") && <span className="dot" />}
-          {sourceLabel}
+        <span className={badgeClass(priceMeta)} title={priceMeta.fallback_reason || undefined}>
+          {showLiveDot && <span className="dot" />}
+          {priceStatusLabel(priceMeta)}
           {priceMeta.cached && " · cached"}
+          {statusHint}
         </span>
       </header>
 
