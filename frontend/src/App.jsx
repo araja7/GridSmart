@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { fetchPrices, scheduleTasks } from "./api";
+import { loadPersistedState, savePersistedState } from "./persistState";
 import { normalizeMaxKw, normalizeTask, validateScheduleInput } from "./validateSchedule";
 import PriceChart from "./components/PriceChart";
 import ResultsDisplay from "./components/ResultsDisplay";
@@ -51,6 +52,8 @@ function badgeClass(meta) {
   return "badge";
 }
 
+const persisted = loadPersistedState();
+
 export default function App() {
   const [prices, setPrices] = useState([]);
   const [priceMeta, setPriceMeta] = useState({
@@ -62,9 +65,9 @@ export default function App() {
     elecz_hours_real: null,
     fallback_reason: null,
   });
-  const [tasks, setTasks] = useState(DEFAULT_TASKS);
-  const [maxKw, setMaxKw] = useState(10);
-  const [result, setResult] = useState(null);
+  const [tasks, setTasks] = useState(persisted?.tasks ?? DEFAULT_TASKS);
+  const [maxKw, setMaxKw] = useState(persisted?.maxKw ?? 10);
+  const [result, setResult] = useState(persisted?.result ?? null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -92,6 +95,10 @@ export default function App() {
     const interval = setInterval(loadPrices, 60_000);
     return () => clearInterval(interval);
   }, [loadPrices]);
+
+  useEffect(() => {
+    savePersistedState({ tasks, maxKw, result });
+  }, [tasks, maxKw, result]);
 
   const handleOptimize = async () => {
     const validationError = validateScheduleInput(tasks, maxKw);
